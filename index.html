@@ -222,33 +222,41 @@ async function load(){
   }
 }
 
-/* ── データ保存（フルシンク） ── */
+/* ── データ保存 ── */
 async function save(){
   setSyncState('syncing');
   try{
-    // tasks: 全削除 → 全挿入
-    await db.from('tasks').delete().gte('id',1);
+    // tasks: upsert（insert or update）→ 不要行を削除
     if(tasks.length>0){
       var tr=tasks.map(function(t,i){
         return {id:t.id,title:t.title,memo:t.memo||'',deadline:t.deadline,tag:t.tag,sort_order:i};
       });
-      var res=await db.from('tasks').insert(tr);
-      if(res.error)throw res.error;
+      var r1=await db.from('tasks').upsert(tr,{onConflict:'id'});
+      if(r1.error)throw r1.error;
+      // 現在のリストにないIDを削除
+      var ids=tasks.map(function(t){return t.id;});
+      var r2=await db.from('tasks').delete().not('id','in','('+ids.join(',')+')');
+      if(r2.error)throw r2.error;
+    }else{
+      // タスクが0件のときは全削除
+      var r0=await db.from('tasks').delete().gte('id',1);
+      if(r0.error)throw r0.error;
     }
-    // tags: 全削除 → 全挿入
-    await db.from('tags').delete().gte('sort_order',0);
+    // tags: 全削除 → 全挿入（sort_orderがPKのため）
+    var rd=await db.from('tags').delete().gte('sort_order',0);
+    if(rd.error)throw rd.error;
     if(tags.length>0){
       var tgr=tags.map(function(t,i){
         return {sort_order:i,name:t.name,bg:t.bg,text_color:t.text,dot:t.dot};
       });
-      var res2=await db.from('tags').insert(tgr);
-      if(res2.error)throw res2.error;
+      var r3=await db.from('tags').insert(tgr);
+      if(r3.error)throw r3.error;
     }
     setSyncState('ok');
   }catch(e){
-    console.error('save error',e);
+    console.error('save error:',e);
     setSyncState('err');
-    toast('保存に失敗しました');
+    toast('保存エラー: '+(e.message||JSON.stringify(e)));
   }
 }
 
