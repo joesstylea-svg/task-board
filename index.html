@@ -22,6 +22,8 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
 .header-right{display:flex;gap:8px;align-items:center;padding-bottom:2px;}
 .btn-add{width:52px;height:52px;border-radius:14px;background:#111111;color:#fff;border:none;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;flex-shrink:0;}
 .btn-tag{width:44px;height:44px;border-radius:12px;background:#fff;color:#111111;border:1.5px solid #E8E5DF;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;}
+.btn-sort{height:36px;padding:0 14px;border-radius:100px;background:#fff;color:#777777;border:1.5px solid #E8E5DF;font-family:'Inter','Noto Sans JP',sans-serif;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;touch-action:manipulation;white-space:nowrap;}
+.btn-sort.active{background:#111111;color:#fff;border-color:#111111;}
 
 .alerts{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
 .ab{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:10px;font-size:12px;background:#fff;border:1.5px solid #E8E5DF;}
@@ -108,6 +110,7 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
   <div class="header-top">
     <div><div class="header-label">TASK BOARD</div><h1 class="header-title">Tasks</h1></div>
     <div class="header-right">
+      <button class="btn-sort" id="bsort" onclick="toggleSort()">&#128197; 日付順</button>
       <button class="btn-tag" onclick="openTagMgr()">&#127991;</button>
       <button class="btn-add" onclick="openAdd()">+</button>
     </div>
@@ -193,7 +196,7 @@ var DTasks=[
   {id:5,title:"Etsy出品の準備",memo:"Ayumi Continental海外展開の第一歩",deadline:"2026-06-20",tag:"Shop"}
 ];
 
-var tasks=[],tags=[],nextId=100,filter="all",editId=null,selTag="",nci=0,renIdx=-1;
+var tasks=[],tags=[],nextId=100,filter="all",editId=null,selTag="",nci=0,renIdx=-1,sortMode="manual";
 var tDrag=null,tagDrag=null;
 
 /* ── データ読み込み ── */
@@ -291,17 +294,20 @@ function renderList(){
   var vis=[];
   for(var i=0;i<tasks.length;i++){if(filter==="all"||tasks[i].tag===filter)vis.push(tasks[i]);}
   if(!vis.length){el.innerHTML='<div class="empty"><div style="font-size:32px;margin-bottom:10px">&#10003;</div><div style="font-size:13px;letter-spacing:.02em">タスクなし</div></div>';return;}
+  if(sortMode==="date"){vis=vis.slice().sort(function(a,b){return new Date(a.deadline)-new Date(b.deadline);});}
   var dots='<div class="dr"><div class="dd"></div><div class="dd"></div></div>';
   dots=dots+dots+dots;
   var html="";
   for(var i=0;i<vis.length;i++){
     var t=vis[i],c=gt(t.tag);
     var num=i<9?"0"+(i+1):""+(i+1);
+    var dhAttr=sortMode==="date"?"":"data-dh";
     html+='<div class="card" data-id="'+t.id+'" style="border-left-color:'+c.dot+'">'+
       '<div class="cleft"><div class="cn">'+num+'</div></div>'+
       '<div class="cb">'+
         '<div class="ct"><span class="ctitle">'+esc(t.title)+'</span>'+
         '<div class="cact">'+
+          '<button class="ibtn" onclick="copyTask('+t.id+')" style="color:#A0A0A0" title="コピー">&#10063;</button>'+
           '<button class="ibtn" onclick="openEdit('+t.id+')" style="color:#A0A0A0">&#9998;</button>'+
           '<button class="ibtn" onclick="delTask('+t.id+')" style="color:#E5484D">&#10005;</button>'+
         '</div></div>'+
@@ -311,13 +317,28 @@ function renderList(){
           db_badge(t.deadline)+
         '</div>'+
       '</div>'+
-      '<div class="dh" data-dh>'+dots+'</div>'+
+      '<div class="dh" '+dhAttr+' style="'+(sortMode==="date"?"opacity:.1;cursor:default":"")+'">'+dots+'</div>'+
     '</div>';
   }
   el.innerHTML=html;
 }
 function render(){renderAlerts();renderFilters();renderList();}
 function setFilter(f){filter=f;render();}
+function toggleSort(){
+  sortMode=sortMode==="manual"?"date":"manual";
+  var btn=document.getElementById("bsort");
+  if(sortMode==="date"){btn.classList.add("active");btn.innerHTML='&#128197; 日付順 ✓';}
+  else{btn.classList.remove("active");btn.innerHTML='&#128197; 日付順';}
+  render();
+}
+function copyTask(id){
+  var t=null;for(var i=0;i<tasks.length;i++){if(tasks[i].id===id){t=tasks[i];break;}}
+  if(!t)return;
+  var copy={id:nextId++,title:t.title+"（コピー）",memo:t.memo,deadline:t.deadline,tag:t.tag};
+  var idx=tasks.indexOf(t);
+  tasks.splice(idx+1,0,copy);
+  save();render();toast("コピーしました");
+}
 function delTask(id){
   if(!confirm("削除しますか？"))return;
   var a=[];for(var i=0;i<tasks.length;i++){if(tasks[i].id!==id)a.push(tasks[i]);}tasks=a;
