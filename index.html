@@ -94,6 +94,18 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
 .csw{width:100%;aspect-ratio:1;border-radius:50%;border:2px solid transparent;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;}
 .csw.sel{outline:2px solid #111111;outline-offset:2px;}
 .div{height:1px;background:#E8E5DF;margin:20px 0;}
+/* textarea */
+.fta{min-height:100px;resize:vertical;line-height:1.6;}
+/* 日付フィールド */
+.date-wrap{position:relative;display:flex;align-items:center;}
+.fi-date{padding-right:40px;cursor:pointer;}
+.date-icon{position:absolute;right:14px;font-size:16px;pointer-events:none;color:#A0A0A0;}
+/* 詳細モーダル */
+.det-tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:#777777;margin-bottom:8px;}
+.det-date{font-size:12px;color:#A0A0A0;}
+.det-memo{font-size:14px;color:#333333;line-height:1.7;white-space:pre-wrap;word-break:break-word;background:#F7F5F2;border-radius:10px;padding:14px;}
+.det-memo:empty::before{content:'メモなし';color:#C8C4BC;}
+
 .toast{position:fixed;bottom:48px;left:50%;transform:translateX(-50%) translateY(16px);background:#111111;color:#fff;padding:10px 20px;border-radius:100px;font-size:13px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:300;white-space:nowrap;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -121,20 +133,20 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
 <div class="list" id="list"><div class="loading"><div class="loading-spin"></div><br>読み込み中...</div></div>
 <div class="hint">点々を長押し（PC: ドラッグ）&#8597; で並び替え</div>
 
-<div class="ov" id="modal" style="display:none" onclick="closeModal()">
+<div class="ov" id="modal" style="display:none">
   <div class="mo" onclick="event.stopPropagation()">
     <div class="mh"></div>
     <div class="mt" id="mtitle">タスクを追加</div>
     <div class="fg"><label class="fl">タスク名</label><input class="fi" id="ft" placeholder="例：資料作成"></div>
-    <div class="fg"><label class="fl">メモ</label><input class="fi" id="fm" placeholder="補足や詳細を入力"></div>
-    <div class="fg"><label class="fl">締め切り</label><input class="fi" type="date" id="fd"></div>
+    <div class="fg"><label class="fl">メモ</label><textarea class="fi fta" id="fm" placeholder="補足や詳細を入力&#10;改行も使えます"></textarea></div>
+    <div class="fg"><label class="fl">締め切り</label><div class="date-wrap"><input class="fi fi-date" type="date" id="fd"><span class="date-icon">&#128197;</span></div></div>
     <div class="fg"><label class="fl">タグ</label><div class="topts" id="topts"></div></div>
     <button class="bsave" onclick="saveTask()">保存する</button>
     <button class="bcancel" onclick="closeModal()">キャンセル</button>
   </div>
 </div>
 
-<div class="ov" id="tagmod" style="display:none" onclick="closeTagMgr()">
+<div class="ov" id="tagmod" style="display:none">
   <div class="mo" onclick="event.stopPropagation()">
     <div class="mh"></div>
     <div class="mt">タグを管理</div>
@@ -149,13 +161,25 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
   </div>
 </div>
 
-<div class="ov" id="renmod" style="display:none" onclick="closeRename()">
+<div class="ov" id="renmod" style="display:none">
   <div class="mo" onclick="event.stopPropagation()">
     <div class="mh"></div>
     <div class="mt">タグ名を変更</div>
     <div class="fg"><label class="fl">新しいタグ名</label><input class="fi" id="reninput" placeholder="タグ名を入力" maxlength="12"></div>
     <button class="bsave" onclick="confirmRename()">変更する</button>
     <button class="bcancel" onclick="closeRename()">キャンセル</button>
+  </div>
+</div>
+
+<div class="ov" id="detmod" style="display:none">
+  <div class="mo" onclick="event.stopPropagation()">
+    <div class="mh"></div>
+    <div class="det-tag" id="det-tag"></div>
+    <div class="mt" id="det-title" style="margin-bottom:8px"></div>
+    <div class="det-date" id="det-date"></div>
+    <div class="div" style="margin:14px 0"></div>
+    <div class="det-memo" id="det-memo"></div>
+    <button class="bcancel" style="margin-top:20px" onclick="closeDetail()">閉じる</button>
   </div>
 </div>
 
@@ -315,6 +339,7 @@ function renderList(){
       '<div class="cb">'+
         '<div class="ct"><span class="ctitle">'+esc(t.title)+'</span>'+
         '<div class="cact">'+
+          '<button class="ibtn" onclick="openDetail('+t.id+')" style="color:#A0A0A0" title="詳細">&#9776;</button>'+
           '<button class="ibtn" onclick="copyTask('+t.id+')" style="color:#A0A0A0" title="コピー">&#10063;</button>'+
           '<button class="ibtn" onclick="openEdit('+t.id+')" style="color:#A0A0A0">&#9998;</button>'+
           '<button class="ibtn" onclick="delTask('+t.id+')" style="color:#E5484D">&#10005;</button>'+
@@ -388,6 +413,17 @@ function openEdit(id){
   renderTagOpts();document.getElementById("modal").style.display="flex";
 }
 function closeModal(){document.getElementById("modal").style.display="none";}
+function openDetail(id){
+  var t=null;for(var i=0;i<tasks.length;i++){if(tasks[i].id===id){t=tasks[i];break;}}
+  if(!t)return;
+  var c=gt(t.tag);
+  document.getElementById("det-tag").innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:'+c.dot+';display:inline-block"></span>'+esc(t.tag);
+  document.getElementById("det-title").textContent=t.title;
+  document.getElementById("det-date").innerHTML=db_badge(t.deadline);
+  document.getElementById("det-memo").textContent=t.memo||"";
+  document.getElementById("detmod").style.display="flex";
+}
+function closeDetail(){document.getElementById("detmod").style.display="none";}
 function saveTask(){
   var title=document.getElementById("ft").value;
   if(title)title=title.trim();if(!title)return;
