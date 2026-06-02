@@ -53,15 +53,15 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
 .cn{font-size:12px;font-weight:600;color:#AAAAAA;letter-spacing:.04em;font-family:'Inter',monospace;}
 .cb{flex:1;min-width:0;padding-right:4px;}
 .ct{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
-.ctitle{font-weight:600;font-size:16px;color:#111111;line-height:1.45;flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.cact{display:flex;gap:4px;flex-shrink:0;}
+.ctitle{font-weight:600;font-size:16px;color:#111111;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cact{display:flex;gap:2px;flex-shrink:0;margin-left:auto;}
 .cmemo{font-size:13px;color:#666666;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .cfoot{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;}
 .tbadge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:#555555;}
 .tdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
 .dbadge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;}
 .ibtn{width:32px;height:32px;border-radius:8px;border:none;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation;background:transparent;color:#999999;}
-.dh{display:flex;flex-direction:column;gap:4px;padding:6px 5px;opacity:.35;flex-shrink:0;touch-action:none;cursor:grab;align-self:center;}
+.dh{display:flex;flex-direction:column;gap:4px;padding:6px 5px;opacity:.35;flex-shrink:0;touch-action:none;cursor:grab;align-self:flex-end;padding-bottom:10px;}
 .dh:active{cursor:grabbing;}
 .dr{display:flex;gap:3px;}
 .dd{width:4px;height:4px;border-radius:50%;background:#999999;}
@@ -325,18 +325,18 @@ function renderList(){
     html+='<div class="card" data-id="'+t.id+'" style="border-left-color:'+c.dot+'">'+
       '<div class="cleft"><div class="cn">'+num+'</div></div>'+
       '<div class="cb">'+
-        '<div class="ct"><span class="ctitle">'+esc(t.title)+'</span>'+
-        '<div class="cact">'+
-          '<button class="ibtn ibtn-det" onclick="toggleDetail('+t.id+',this)" style="color:#A0A0A0" title="詳細">&#9776;</button>'+
-          '<button class="ibtn" onclick="copyTask('+t.id+')" style="color:#A0A0A0" title="コピー">&#10063;</button>'+
-          '<button class="ibtn" onclick="openEdit('+t.id+')" style="color:#A0A0A0">&#9998;</button>'+
-          '<button class="ibtn" onclick="delTask('+t.id+')" style="color:#E5484D">&#10005;</button>'+
-        '</div></div>'+
+        '<div class="ct"><span class="ctitle">'+esc(t.title)+'</span></div>'+
         '<div class="cmemo">'+esc(t.memo)+'</div>'+
         '<div class="cmemo-full">'+esc(t.memo)+'</div>'+
         '<div class="cfoot">'+
           '<span class="tbadge"><span class="tdot" style="background:'+c.dot+'"></span>'+esc(t.tag)+'</span>'+
           db_badge(t.deadline)+
+          '<div class="cact">'+
+            '<button class="ibtn ibtn-det" onclick="toggleDetail('+t.id+',this)" title="詳細">&#9776;</button>'+
+            '<button class="ibtn" onclick="copyTask('+t.id+')" title="コピー">&#10063;</button>'+
+            '<button class="ibtn" onclick="openEdit('+t.id+')">&#9998;</button>'+
+            '<button class="ibtn" onclick="delTask('+t.id+')" style="color:#E5484D">&#10005;</button>'+
+          '</div>'+
         '</div>'+
       '</div>'+
       '<div class="dh" '+dhAttr+' style="'+(sortMode==="date"?"opacity:.1;cursor:default":"")+'">'+dots+'</div>'+
