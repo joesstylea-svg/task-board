@@ -49,6 +49,15 @@ body{background:#F7F5F2;font-family:'Inter','Noto Sans JP',sans-serif;max-width:
 .card{background:#fff;border-radius:16px;padding:18px 14px 18px 0;margin-bottom:10px;border:1.5px solid #E8E5DF;border-left-width:3px;display:flex;gap:0;align-items:stretch;-webkit-user-select:none;user-select:none;touch-action:pan-y;transition:opacity .15s;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden;}
 .card.ia{opacity:.18;}
 .card.ig{border-color:#111111;background:#fafafa;}
+.card.done-card{opacity:.55;border-left-color:#CCCCCC !important;}
+.card.done-card .ctitle{text-decoration:line-through;color:#888888;}
+.done-section-hd{display:flex;align-items:center;gap:8px;padding:10px 4px 8px;cursor:pointer;user-select:none;}
+.done-section-hd-label{font-size:12px;font-weight:600;color:#888888;letter-spacing:.04em;}
+.done-section-hd-count{font-size:11px;color:#AAAAAA;background:#EEEBE6;border-radius:100px;padding:1px 8px;}
+.done-section-hd-arrow{font-size:11px;color:#AAAAAA;margin-left:auto;transition:transform .2s;}
+.done-section-hd.open .done-section-hd-arrow{transform:rotate(180deg);}
+.done-section-body{display:none;}
+.done-section-body.open{display:block;}
 .cleft{width:42px;display:flex;flex-direction:column;align-items:center;padding-top:3px;flex-shrink:0;}
 .cn{font-size:12px;font-weight:600;color:#AAAAAA;letter-spacing:.04em;font-family:'Inter',monospace;}
 .cb{flex:1;min-width:0;padding-right:4px;}
@@ -218,7 +227,7 @@ async function load(){
     var tgr=await db.from('tags').select('*').order('sort_order',{ascending:true});
     if(tr.error)throw tr.error;
     if(tr.data&&tr.data.length>0){
-      tasks=tr.data.map(function(t){return {id:t.id,title:t.title,memo:t.memo||'',deadline:t.deadline,tag:t.tag};});
+      tasks=tr.data.map(function(t){return {id:t.id,title:t.title,memo:t.memo||'',deadline:t.deadline,tag:t.tag,done:t.done||false};});
       tags=(tgr.data||[]).map(function(t){return {name:t.name,bg:t.bg,text:t.text_color,dot:t.dot};});
       nextId=tasks.reduce(function(m,t){return Math.max(m,t.id+1);},100);
     }else{
@@ -241,7 +250,7 @@ async function save(){
     // tasks: upsert（insert or update）→ 不要行を削除
     if(tasks.length>0){
       var tr=tasks.map(function(t,i){
-        return {id:t.id,title:t.title,memo:t.memo||'',deadline:t.deadline,tag:t.tag,sort_order:i};
+        return {id:t.id,title:t.title,memo:t.memo||'',deadline:t.deadline,tag:t.tag,done:t.done||false,sort_order:i};
       });
       var r1=await db.from('tasks').upsert(tr,{onConflict:'id'});
       if(r1.error)throw r1.error;
@@ -309,43 +318,76 @@ function renderFilters(){
   }
   document.getElementById("filters").innerHTML=html;
 }
+function makeCard(t,num,draggable){
+  var c=gt(t.tag);
+  var dhAttr=draggable?"data-dh":"";
+  var dhStyle=draggable?"":"opacity:.1;cursor:default";
+  var dots='<div class="dr"><div class="dd"></div><div class="dd"></div></div>';
+  dots=dots+dots+dots;
+  var checkStyle=t.done?"color:#5aaa65":"color:#CCCCCC";
+  var cardClass="card"+(t.done?" done-card":"");
+  return '<div class="'+cardClass+'" data-id="'+t.id+'" style="border-left-color:'+(t.done?"#CCCCCC":c.dot)+'">'+
+    '<div class="cleft"><div class="cn">'+num+'</div></div>'+
+    '<div class="cb">'+
+      '<div class="ct"><span class="ctitle">'+esc(t.title)+'</span></div>'+
+      '<div class="cmemo">'+esc(t.memo)+'</div>'+
+      '<div class="cmemo-full">'+esc(t.memo)+'</div>'+
+      '<div class="cfoot">'+
+        '<span class="tbadge"><span class="tdot" style="background:'+c.dot+'"></span>'+esc(t.tag)+'</span>'+
+        (t.done?'':db_badge(t.deadline))+
+        '<div class="cact">'+
+          '<button class="ibtn" onclick="toggleDone('+t.id+')" style="'+checkStyle+'" title="完了">&#10003;</button>'+
+          '<button class="ibtn ibtn-det" onclick="toggleDetail('+t.id+',this)" title="詳細">&#9776;</button>'+
+          '<button class="ibtn" onclick="copyTask('+t.id+')" title="コピー">&#10063;</button>'+
+          '<button class="ibtn" onclick="openEdit('+t.id+')">&#9998;</button>'+
+          '<button class="ibtn" onclick="delTask('+t.id+')" style="color:#E5484D">&#10005;</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="dh" '+dhAttr+' style="'+dhStyle+'">'+dots+'</div>'+
+  '</div>';
+}
 function renderList(){
   var el=document.getElementById("list");
   var vis=[];
   for(var i=0;i<tasks.length;i++){if(filter==="all"||tasks[i].tag===filter)vis.push(tasks[i]);}
-  if(!vis.length){el.innerHTML='<div class="empty"><div style="font-size:32px;margin-bottom:10px">&#10003;</div><div style="font-size:13px;letter-spacing:.02em">タスクなし</div></div>';return;}
-  if(sortMode==="date"){vis=vis.slice().sort(function(a,b){return new Date(a.deadline)-new Date(b.deadline);});}
-  var dots='<div class="dr"><div class="dd"></div><div class="dd"></div></div>';
-  dots=dots+dots+dots;
+  var active=[],done=[];
+  for(var i=0;i<vis.length;i++){(vis[i].done?done:active).push(vis[i]);}
+  if(!active.length&&!done.length){el.innerHTML='<div class="empty"><div style="font-size:32px;margin-bottom:10px">&#10003;</div><div style="font-size:13px;letter-spacing:.02em">タスクなし</div></div>';return;}
+  if(sortMode==="date"){active=active.slice().sort(function(a,b){return new Date(a.deadline)-new Date(b.deadline);});}
   var html="";
-  for(var i=0;i<vis.length;i++){
-    var t=vis[i],c=gt(t.tag);
+  var canDrag=sortMode!=="date";
+  for(var i=0;i<active.length;i++){
     var num=i<9?"0"+(i+1):""+(i+1);
-    var dhAttr=sortMode==="date"?"":"data-dh";
-    html+='<div class="card" data-id="'+t.id+'" style="border-left-color:'+c.dot+'">'+
-      '<div class="cleft"><div class="cn">'+num+'</div></div>'+
-      '<div class="cb">'+
-        '<div class="ct"><span class="ctitle">'+esc(t.title)+'</span></div>'+
-        '<div class="cmemo">'+esc(t.memo)+'</div>'+
-        '<div class="cmemo-full">'+esc(t.memo)+'</div>'+
-        '<div class="cfoot">'+
-          '<span class="tbadge"><span class="tdot" style="background:'+c.dot+'"></span>'+esc(t.tag)+'</span>'+
-          db_badge(t.deadline)+
-          '<div class="cact">'+
-            '<button class="ibtn ibtn-det" onclick="toggleDetail('+t.id+',this)" title="詳細">&#9776;</button>'+
-            '<button class="ibtn" onclick="copyTask('+t.id+')" title="コピー">&#10063;</button>'+
-            '<button class="ibtn" onclick="openEdit('+t.id+')">&#9998;</button>'+
-            '<button class="ibtn" onclick="delTask('+t.id+')" style="color:#E5484D">&#10005;</button>'+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-      '<div class="dh" '+dhAttr+' style="'+(sortMode==="date"?"opacity:.1;cursor:default":"")+'">'+dots+'</div>'+
-    '</div>';
+    html+=makeCard(active[i],num,canDrag);
+  }
+  if(done.length){
+    html+='<div class="done-section-hd" id="done-hd" onclick="toggleDoneSection()">'+
+      '<span class="done-section-hd-label">完了済み</span>'+
+      '<span class="done-section-hd-count">'+done.length+'件</span>'+
+      '<span class="done-section-hd-arrow">&#9660;</span>'+
+    '</div>'+
+    '<div class="done-section-body" id="done-bd">';
+    for(var i=0;i<done.length;i++){html+=makeCard(done[i],"—",false);}
+    html+='</div>';
   }
   el.innerHTML=html;
 }
 function render(){renderAlerts();renderFilters();renderList();}
 function setFilter(f){filter=f;render();}
+function toggleDone(id){
+  for(var i=0;i<tasks.length;i++){
+    if(tasks[i].id===id){tasks[i].done=!tasks[i].done;break;}
+  }
+  save();render();
+}
+function toggleDoneSection(){
+  var hd=document.getElementById('done-hd');
+  var bd=document.getElementById('done-bd');
+  if(!hd)return;
+  hd.classList.toggle('open');
+  bd.classList.toggle('open');
+}
 function toggleSort(){
   sortMode=sortMode==="manual"?"date":"manual";
   var btn=document.getElementById("bsort");
@@ -427,7 +469,7 @@ function saveTask(){
     }
     toast("更新しました");
   }else{
-    tasks.push({id:nextId++,title:title,memo:memo,deadline:deadline,tag:selTag});
+    tasks.unshift({id:nextId++,title:title,memo:memo,deadline:deadline,tag:selTag,done:false});
     toast("追加しました");
   }
   save();closeModal();render();
